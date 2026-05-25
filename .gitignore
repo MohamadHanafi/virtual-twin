@@ -8,6 +8,9 @@ adapters/
 data/raw_documents/
 data/mlx_lora/
 data/chroma/
+data/*.db
+data/*.sqlite
+data/*.sqlite3
 models/
 
 *.pdf

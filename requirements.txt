@@ -2,6 +2,10 @@ fastapi
 uvicorn[standard]
 python-dotenv
 pydantic
+PyJWT
+sqlalchemy
+psycopg[binary]
+alembic
 langchain
 langchain-community
 langchain-text-splitters
