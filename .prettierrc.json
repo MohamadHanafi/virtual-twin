@@ -1,0 +1,14 @@
+{
+  "printWidth": 88,
+  "tabWidth": 4,
+  "useTabs": false,
+  "plugins": ["prettier-plugin-python"],
+  "overrides": [
+    {
+      "files": "*.py",
+      "options": {
+        "parser": "python"
+      }
+    }
+  ]
+}

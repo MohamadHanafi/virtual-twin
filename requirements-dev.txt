@@ -1,0 +1,9 @@
+-r requirements.txt
+
+jupyterlab
+ipykernel
+ipywidgets
+mlx-lm[train]
+black
+pytest
+datasets

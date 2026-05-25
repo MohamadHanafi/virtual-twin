@@ -1,0 +1,13 @@
+.env
+__pycache__/
+*.pyc
+.venv/
+.DS_Store
+.ipynb_checkpoints/
+adapters/
+data/raw_documents/
+data/mlx_lora/
+data/chroma/
+models/
+
+*.pdf
