@@ -28,9 +28,6 @@ class ActionType(str, Enum):
 class NavigationTarget(str, Enum):
     ABOUT = "#about"
     PROJECTS = "#projects"
-    SERVICES = "#services"
-    EXPERIENCE = "#experience"
-    PUBLICATIONS = "#publications"
     CONTACT = "#contact"
 
 
@@ -60,6 +57,7 @@ class ChatRequest(BaseModel):
     message: str
     session_id: Optional[str] = None
     mode: Optional[ChatMode] = None
+    current_location: Optional[NavigationTarget] = None
 
 
 class AgentRequest(BaseModel):
@@ -67,6 +65,7 @@ class AgentRequest(BaseModel):
     session_id: str
     history: list[ChatMessage] = Field(default_factory=list)
     mode: ChatMode = ChatMode.CHAT
+    current_location: Optional[NavigationTarget] = None
 
 
 class ChatResponse(BaseModel):

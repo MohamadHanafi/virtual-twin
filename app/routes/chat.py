@@ -28,6 +28,7 @@ def create_chat_message(request: ChatRequest, db: Session = Depends(get_db)):
             session_id=conversation_session.id,
             history=stored_history,
             mode=request.mode or ChatMode.CHAT,
+            current_location=request.current_location,
         )
 
         response = handle_chat(agent_request)

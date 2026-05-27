@@ -4,7 +4,13 @@ import re
 
 from pydantic import ValidationError
 
-from app.models import AgentRequest, ChatResponse, MessageRole, RouteDecision, RouteIntent
+from app.models import (
+    AgentRequest,
+    ChatResponse,
+    MessageRole,
+    RouteDecision,
+    RouteIntent,
+)
 from app.services.llm_service import (
     SYSTEM_MESSAGE,
     generate_chat_response,
@@ -16,7 +22,6 @@ from app.services.rag_service import (
     retrieve_context,
 )
 from app.services.tool_registry import (
-    detect_navigation_target,
     navigation_action,
     start_contact_flow_action,
 )
@@ -37,60 +42,22 @@ ROUTER_SYSTEM_MESSAGE = (
     "Return only valid JSON with these fields: "
     "intent, needs_rag, navigation_target. "
     f"intent must be one of: {', '.join(intent.value for intent in RouteIntent)}. "
-    "navigation_target must be one of null, #about, #projects, #services, "
-    "#experience, #publications, #contact. "
-    "Use contact_request when the user wants to email, contact, reach, or message Mohamad. "
-    "Use navigation_request when the user wants to see or go to a portfolio section. "
-    "Use portfolio_question and needs_rag true for questions about Mohamad's skills, "
-    "experience, projects, publications, patents, CV, services, work, background, "
-    "hobbies, interests, personal profile, running, marathons, fitness, training, "
-    "sports, or lifestyle."
+    "navigation_target must be one of null, #about, #projects, and #contact. "
+    "Infer intent from meaning and conversation context, not just exact words. "
+    "Use contact_request when the user wants a channel, introduction, message, "
+    "or way to communicate with Mohamad. "
+    "Use navigation_request only when the user wants the interface to move to a "
+    "portfolio section; include the target section. "
+    "If the user is already on the requested section, return portfolio_question "
+    "with needs_rag true instead of navigation_request. "
+    "Use portfolio_question with needs_rag true for questions about Mohamad, his "
+    "skills, experience, projects, publications, patents, CV, services, work, "
+    "background, hobbies, interests, or lifestyle. "
+    "Use general_chat only for conversational messages that do not need portfolio "
+    "knowledge or an action."
 )
 
-
-def _needs_rag(message: str) -> bool:
-    normalized = message.lower()
-    keywords = [
-        "skill",
-        "experience",
-        "project",
-        "publication",
-        "patent",
-        "cv",
-        "background",
-        "education",
-        "service",
-        "work",
-        "research",
-        "hobbies",
-        "interest",
-    ]
-    return any(keyword in normalized for keyword in keywords)
-
-
-def _is_contact_request(message: str) -> bool:
-    normalized = message.lower()
-    return any(
-        phrase in normalized
-        for phrase in ["contact", "email", "get in touch", "reach mohamad"]
-    )
-
-
-def _fallback_route(message: str) -> RouteDecision:
-    if _is_contact_request(message):
-        return RouteDecision(intent=RouteIntent.CONTACT_REQUEST, needs_rag=False)
-
-    navigation_target = detect_navigation_target(message)
-    if navigation_target:
-        return RouteDecision(
-            intent=RouteIntent.NAVIGATION_REQUEST,
-            needs_rag=False,
-            navigation_target=navigation_target,
-        )
-
-    if _needs_rag(message):
-        return RouteDecision(intent=RouteIntent.PORTFOLIO_QUESTION, needs_rag=True)
-
+def _default_route() -> RouteDecision:
     return RouteDecision(intent=RouteIntent.GENERAL_CHAT, needs_rag=False)
 
 
@@ -106,7 +73,10 @@ def _extract_json_object(text: str) -> dict | None:
 
 
 def route_message(request: AgentRequest) -> RouteDecision:
-    fallback = _fallback_route(request.message)
+    fallback = _default_route()
+    current_location = (
+        request.current_location.value if request.current_location else "unknown"
+    )
 
     history_preview = [
         {"role": message.role.value, "content": message.content}
@@ -120,6 +90,7 @@ def route_message(request: AgentRequest) -> RouteDecision:
             "content": (
                 "Conversation history:\n"
                 f"{json.dumps(history_preview, ensure_ascii=False)}\n\n"
+                f"Current portfolio section: {current_location}\n\n"
                 f"Current user message: {request.message}\n\n"
                 "Return only JSON."
             ),
@@ -129,7 +100,7 @@ def route_message(request: AgentRequest) -> RouteDecision:
     try:
         raw_decision = generate_router_response(router_messages)
     except Exception:
-        logger.exception("LLM router failed; using fallback route")
+        logger.exception("LLM router failed; using default route")
         return fallback
 
     parsed = _extract_json_object(raw_decision)
@@ -142,8 +113,26 @@ def route_message(request: AgentRequest) -> RouteDecision:
     except ValidationError:
         return fallback
 
-    if decision.intent == RouteIntent.NAVIGATION_REQUEST and not decision.navigation_target:
-        decision.navigation_target = fallback.navigation_target
+    if decision.intent == RouteIntent.CONTACT_REQUEST:
+        decision.needs_rag = False
+        decision.navigation_target = None
+        return decision
+
+    if decision.intent == RouteIntent.PORTFOLIO_QUESTION:
+        decision.needs_rag = True
+        decision.navigation_target = None
+        return decision
+
+    if decision.intent == RouteIntent.NAVIGATION_REQUEST:
+        decision.needs_rag = False
+        if not decision.navigation_target:
+            return fallback
+        if decision.navigation_target == request.current_location:
+            return RouteDecision(
+                intent=RouteIntent.PORTFOLIO_QUESTION,
+                needs_rag=True,
+                navigation_target=None,
+            )
 
     return decision
 
@@ -165,11 +154,19 @@ def handle_chat(request: AgentRequest) -> ChatResponse:
 
     if route.intent == RouteIntent.CONTACT_REQUEST:
         return ChatResponse(
-            reply="Sure. I can help you contact Mohamad. What is your name?",
+            reply="Sure. I can help you contact Mohamad. Could you please provide your name and email address?",
             action=start_contact_flow_action(),
         )
 
-    navigation_target = route.navigation_target or detect_navigation_target(message)
+    navigation_target = route.navigation_target
+    if navigation_target == request.current_location:
+        navigation_target = None
+        route = RouteDecision(
+            intent=RouteIntent.PORTFOLIO_QUESTION,
+            needs_rag=True,
+            navigation_target=None,
+        )
+
     if navigation_target:
         return ChatResponse(
             reply="Sure. I can take you there.",

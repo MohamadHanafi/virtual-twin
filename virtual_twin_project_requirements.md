@@ -534,7 +534,7 @@ Required for MVP:
 
 ```env
 LLM_MODEL=Qwen/Qwen3-4B
-HF_TOKEN=your_huggingface_token_if_needed
+HF_TOKEN=your_HUGGINGFACE_TOKEN_if_needed
 FRONTEND_URL=http://localhost:3000
 ```
 

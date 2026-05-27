@@ -14,9 +14,6 @@ def detect_navigation_target(message: str) -> NavigationTarget | None:
 
     targets = {
         "project": NavigationTarget.PROJECTS,
-        "service": NavigationTarget.SERVICES,
-        "experience": NavigationTarget.EXPERIENCE,
-        "publication": NavigationTarget.PUBLICATIONS,
         "contact": NavigationTarget.CONTACT,
         "about": NavigationTarget.ABOUT,
     }
