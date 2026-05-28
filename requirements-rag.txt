@@ -1,0 +1,11 @@
+langchain
+langchain-community
+langchain-text-splitters
+langchain-huggingface
+langchain-chroma
+pypdf
+sentence-transformers
+chromadb
+transformers
+safetensors
+huggingface-hub

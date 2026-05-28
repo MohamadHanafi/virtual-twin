@@ -47,11 +47,6 @@ from app.services.llm_service import (
     generate_chat_response,
     generate_router_response,
 )
-from app.services.rag_service import (
-    document_sources,
-    format_documents_for_prompt,
-    retrieve_context,
-)
 from app.services.tool_registry import (
     complete_contact_flow_action,
     navigation_action,
@@ -113,39 +108,31 @@ def route_message(request: AgentRequest) -> RouteDecision:
         raw_decision = generate_router_response(router_messages)
     except Exception:
         logger.exception("LLM router failed; using default route")
-        print("[router] failed; using default route")
         return fallback
 
-    print(f"[router] raw decision: {raw_decision}")
     parsed = _extract_json_object(raw_decision)
 
     if parsed is None:
-        print("[router] no valid JSON found; using default route")
         return fallback
 
-    print(f"[router] parsed decision: {parsed}")
     try:
         decision = RouteDecision.model_validate(parsed)
-    except ValidationError as exc:
-        print(f"[router] validation failed; using default route: {exc}")
+    except ValidationError:
         return fallback
 
     if decision.intent == RouteIntent.CONTACT_REQUEST:
         decision.needs_rag = False
         decision.navigation_target = None
-        print(f"[router] final decision: {decision.model_dump(mode='json')}")
         return decision
 
     if decision.intent == RouteIntent.PORTFOLIO_QUESTION:
         decision.needs_rag = True
         decision.navigation_target = None
-        print(f"[router] final decision: {decision.model_dump(mode='json')}")
         return decision
 
     if decision.intent == RouteIntent.NAVIGATION_REQUEST:
         decision.needs_rag = False
         if not decision.navigation_target:
-            print("[router] navigation missing target; using default route")
             return fallback
         if decision.navigation_target == request.current_location:
             decision = RouteDecision(
@@ -153,10 +140,8 @@ def route_message(request: AgentRequest) -> RouteDecision:
                 needs_rag=True,
                 navigation_target=None,
             )
-            print(f"[router] final decision: {decision.model_dump(mode='json')}")
             return decision
 
-    print(f"[router] final decision: {decision.model_dump(mode='json')}")
     return decision
 
 
@@ -444,7 +429,6 @@ def handle_chat(request: AgentRequest) -> ChatResponse:
         return _handle_contact_flow(request)
 
     if _is_contact_button_message(message):
-        print("[chat] starting contact flow from contact button")
         return ChatResponse(
             reply=CONTACT_PROMPT,
             action=start_contact_flow_action(),
@@ -452,7 +436,6 @@ def handle_chat(request: AgentRequest) -> ChatResponse:
         )
 
     if _is_contact_offer_acceptance(request):
-        print("[chat] starting contact flow from contact offer acceptance")
         return ChatResponse(
             reply=CONTACT_PROMPT,
             action=start_contact_flow_action(),
@@ -466,10 +449,8 @@ def handle_chat(request: AgentRequest) -> ChatResponse:
         if _has_contact_details(message) or (
             existing_details.name and existing_details.email
         ):
-            print("[chat] continuing contact flow from router decision with contact details")
             return _handle_contact_flow(request)
 
-        print("[chat] starting contact flow from router decision")
         return ChatResponse(
             reply=CONTACT_PROMPT,
             action=start_contact_flow_action(),
@@ -496,11 +477,17 @@ def handle_chat(request: AgentRequest) -> ChatResponse:
 
     if route.needs_rag:
         try:
+            from app.services.rag_service import (
+                document_sources,
+                format_documents_for_prompt,
+                retrieve_context,
+            )
+
             documents = retrieve_context(message)
             sources = document_sources(documents)
             context = format_documents_for_prompt(documents)
-        except FileNotFoundError as exc:
-            logger.exception("RAG vector database is missing")
+        except (FileNotFoundError, ImportError, ModuleNotFoundError) as exc:
+            logger.exception("RAG dependencies or vector database are missing")
             raise ChatServiceError(
                 RAG_NOT_READY_MESSAGE,
                 status_code=503,

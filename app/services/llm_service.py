@@ -3,8 +3,6 @@ from functools import lru_cache
 import os
 import re
 
-from mlx_lm import generate, load
-from mlx_lm.sample_utils import make_sampler
 from dotenv import load_dotenv
 from google import genai
 from google.genai import types
@@ -89,6 +87,9 @@ def get_gemini_client():
 
 @lru_cache(maxsize=1)
 def get_local_llm():
+    from mlx_lm import load
+    from mlx_lm.sample_utils import make_sampler
+
     if not BASE_MODEL_DIR.exists():
         raise FileNotFoundError(f"Base model not found: {BASE_MODEL_DIR}")
 
@@ -101,6 +102,8 @@ def get_local_llm():
 
 
 def _generate_local_response(messages: list[dict[str, str]], max_tokens: int) -> str:
+    from mlx_lm import generate
+
     model, tokenizer, sampler = get_local_llm()
     prompt = tokenizer.apply_chat_template(
         messages,
@@ -129,7 +132,6 @@ def _generate_gemini_response(messages: list[dict[str, str]], max_tokens: int) -
             max_output_tokens=max_tokens,
         ),
     )
-    print (response)
     return clean_model_output(response.text or "")
 
 
