@@ -1,7 +1,7 @@
 from typing import Optional
 from uuid import uuid4
 
-from sqlalchemy import select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.db.models import ConversationMessage, ConversationSession
@@ -62,13 +62,20 @@ def append_message(
     return message
 
 
-def list_chat_sessions(db: Session, limit: int = 100) -> list[StoredChatSession]:
+def list_chat_sessions(
+    db: Session,
+    limit: int = 100,
+    session_id: Optional[str] = None,
+) -> list[StoredChatSession]:
     statement = (
         select(ConversationSession)
         .options(selectinload(ConversationSession.messages))
         .order_by(ConversationSession.updated_at.desc())
-        .limit(limit)
     )
+    if session_id:
+        statement = statement.where(ConversationSession.id == session_id)
+
+    statement = statement.limit(limit)
     sessions = list(db.scalars(statement))
 
     return [
@@ -89,3 +96,14 @@ def list_chat_sessions(db: Session, limit: int = 100) -> list[StoredChatSession]
         )
         for session in sessions
     ]
+
+
+def delete_all_chat_sessions(db: Session) -> tuple[int, int]:
+    session_count = db.scalar(select(func.count()).select_from(ConversationSession)) or 0
+    message_count = db.scalar(select(func.count()).select_from(ConversationMessage)) or 0
+
+    db.execute(delete(ConversationMessage))
+    db.execute(delete(ConversationSession))
+    db.commit()
+
+    return int(session_count), int(message_count)

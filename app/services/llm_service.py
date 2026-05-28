@@ -1,6 +1,6 @@
+from enum import Enum
 from functools import lru_cache
 import os
-from pathlib import Path
 import re
 
 from mlx_lm import generate, load
@@ -9,23 +9,29 @@ from dotenv import load_dotenv
 from google import genai
 from google.genai import types
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-load_dotenv(PROJECT_ROOT / ".env")
-
-BASE_MODEL_DIR = PROJECT_ROOT / "models" / "base" / "mlx-community__Qwen3-4B-4bit"
-ADAPTER_DIR = PROJECT_ROOT / "adapters" / "virtual_twin_style"
-
-LOCAL_PROVIDER = "local"
-GEMINI_PROVIDER = "gemini"
-DEFAULT_GEMINI_MODEL = "gemini-2.5-flash"
-
-
-SYSTEM_MESSAGE = (
-    "You are Mohamad's professional virtual assistant. "
-    "Answer clearly, concisely, professionally, and only make claims supported by available context. "
-    "When the user's request is vague or missing important context, ask one concise"
-    "follow-up question before answering. Do not guess."
+from app.constants.llm import (
+    ADAPTER_DIR,
+    BASE_MODEL_DIR,
+    DEFAULT_GEMINI_MODEL,
+    GEMINI_API_KEY_ENV,
+    GEMINI_MODEL_ENV,
+    GEMINI_PROVIDER,
+    GEMINI_TEMPERATURE,
+    LLM_PROVIDER_ENV,
+    LOCAL_MODEL_TEMPERATURE,
+    LOCAL_PROVIDER,
+    MISSING_GEMINI_API_KEY_MESSAGE,
 )
+from app.constants.paths import PROJECT_ROOT
+from app.models import MessageRole
+
+
+class GeminiRole(str, Enum):
+    MODEL = "model"
+    USER = "user"
+
+
+load_dotenv(PROJECT_ROOT / ".env")
 
 
 def clean_model_output(text: str) -> str:
@@ -35,14 +41,16 @@ def clean_model_output(text: str) -> str:
 
 
 def _llm_provider() -> str:
-    return os.getenv("LLM_PROVIDER", LOCAL_PROVIDER).strip().lower()
+    return os.getenv(LLM_PROVIDER_ENV, LOCAL_PROVIDER).strip().lower()
 
 
 def _gemini_model_name() -> str:
-    return os.getenv("GEMINI_MODEL", DEFAULT_GEMINI_MODEL).strip() or DEFAULT_GEMINI_MODEL
+    return os.getenv(GEMINI_MODEL_ENV, DEFAULT_GEMINI_MODEL).strip() or DEFAULT_GEMINI_MODEL
 
 
-def _split_system_instruction(messages: list[dict[str, str]]) -> tuple[str | None, list[types.Content]]:
+def _split_system_instruction(
+    messages: list[dict[str, str]],
+) -> tuple[str | None, list[types.Content]]:
     system_parts = []
     contents = []
 
@@ -50,14 +58,18 @@ def _split_system_instruction(messages: list[dict[str, str]]) -> tuple[str | Non
         role = message["role"]
         content = message["content"]
 
-        if role == "system":
+        if role == MessageRole.SYSTEM.value:
             system_parts.append(content)
             continue
 
-        gemini_role = "model" if role == "assistant" else "user"
+        gemini_role = (
+            GeminiRole.MODEL
+            if role == MessageRole.ASSISTANT.value
+            else GeminiRole.USER
+        )
         contents.append(
             types.Content(
-                role=gemini_role,
+                role=gemini_role.value,
                 parts=[types.Part.from_text(text=content)],
             )
         )
@@ -68,9 +80,9 @@ def _split_system_instruction(messages: list[dict[str, str]]) -> tuple[str | Non
 
 @lru_cache(maxsize=1)
 def get_gemini_client():
-    api_key = os.getenv("GEMINI_API_KEY")
+    api_key = os.getenv(GEMINI_API_KEY_ENV)
     if not api_key:
-        raise RuntimeError("GEMINI_API_KEY is required when LLM_PROVIDER=gemini")
+        raise RuntimeError(MISSING_GEMINI_API_KEY_MESSAGE)
 
     return genai.Client(api_key=api_key)
 
@@ -84,7 +96,7 @@ def get_local_llm():
         raise FileNotFoundError(f"LoRA adapter not found: {ADAPTER_DIR}")
 
     model, tokenizer = load(str(BASE_MODEL_DIR), adapter_path=str(ADAPTER_DIR))
-    sampler = make_sampler(temp=0.5)
+    sampler = make_sampler(temp=LOCAL_MODEL_TEMPERATURE)
     return model, tokenizer, sampler
 
 
@@ -113,7 +125,7 @@ def _generate_gemini_response(messages: list[dict[str, str]], max_tokens: int) -
         contents=contents,
         config=types.GenerateContentConfig(
             system_instruction=system_instruction,
-            temperature=0.5,
+            temperature=GEMINI_TEMPERATURE,
             max_output_tokens=max_tokens,
         ),
     )

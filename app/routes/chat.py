@@ -17,6 +17,7 @@ router = APIRouter(prefix="/chat", tags=["chat"])
 logger = logging.getLogger(__name__)
 
 
+@router.post("", response_model=ChatResponse, include_in_schema=False)
 @router.post("/", response_model=ChatResponse)
 def create_chat_message(request: ChatRequest, db: Session = Depends(get_db)):
     try:

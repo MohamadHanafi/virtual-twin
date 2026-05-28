@@ -1,20 +1,23 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.constants.api import (
+    APP_DESCRIPTION,
+    APP_TITLE,
+    APP_VERSION,
+    CORS_ALLOW_ORIGINS,
+)
 from app.routes import auth, chat, health, sessions
 
 app = FastAPI(
-    title="Virtual Twin Backend",
-    description="Backend API for the Virtual Twin portfolio chatbot",
-    version="0.1.0",
+    title=APP_TITLE,
+    description=APP_DESCRIPTION,
+    version=APP_VERSION,
 )
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "https://mohamadhanafi.io",
-    ],
+    allow_origins=CORS_ALLOW_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

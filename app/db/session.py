@@ -1,22 +1,20 @@
 import os
 from functools import lru_cache
-from pathlib import Path
 
 from dotenv import load_dotenv
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
+from app.constants.database import DATABASE_URL_ENV, DEFAULT_DATABASE_URL
+from app.constants.paths import PROJECT_ROOT
 from app.db.base import Base
 import app.db.models  # noqa: F401
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
 load_dotenv(PROJECT_ROOT / ".env")
-
-DEFAULT_DATABASE_URL = f"sqlite:///{PROJECT_ROOT / 'data' / 'app.sqlite3'}"
 
 
 def get_database_url() -> str:
-    database_url = os.getenv("DATABASE_URL", DEFAULT_DATABASE_URL)
+    database_url = os.getenv(DATABASE_URL_ENV, DEFAULT_DATABASE_URL)
 
     if database_url.startswith("postgresql://"):
         return database_url.replace("postgresql://", "postgresql+psycopg://", 1)

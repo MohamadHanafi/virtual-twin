@@ -23,12 +23,30 @@ class RouteIntent(str, Enum):
 class ActionType(str, Enum):
     NAVIGATE = "navigate"
     START_CONTACT_FLOW = "start_contact_flow"
+    COMPLETE_CONTACT_FLOW = "complete_contact_flow"
+
+
+class ActionPayloadKey(str, Enum):
+    CONTENT = "content"
+    EMAIL = "email"
+    MESSAGE = "message"
+    MODE = "mode"
+    NAME = "name"
 
 
 class NavigationTarget(str, Enum):
+    HOME = "#home"
     ABOUT = "#about"
     PROJECTS = "#projects"
     CONTACT = "#contact"
+
+
+class NavigationKeyword(str, Enum):
+    HOME = "home"
+    PROJECT = "project"
+    PROJECTS = "projects"
+    CONTACT = "contact"
+    ABOUT = "about"
 
 
 class ChatMode(str, Enum):
@@ -72,6 +90,7 @@ class ChatResponse(BaseModel):
     reply: str
     session_id: Optional[str] = None
     action: Optional[Action] = None
+    mode: Optional[ChatMode] = None
     sources: list[Source] = Field(default_factory=list)
 
 
@@ -79,6 +98,13 @@ class RouteDecision(BaseModel):
     intent: RouteIntent = RouteIntent.GENERAL_CHAT
     needs_rag: bool = False
     navigation_target: Optional[NavigationTarget] = None
+
+
+class ContactRequestDetails(BaseModel):
+    name: Optional[str] = None
+    email: Optional[str] = None
+    content: Optional[str] = None
+    send_without_message: bool = False
 
 
 class StoredChatMessage(BaseModel):
@@ -93,6 +119,11 @@ class StoredChatSession(BaseModel):
     created_at: datetime
     updated_at: datetime
     messages: list[StoredChatMessage] = Field(default_factory=list)
+
+
+class DeleteChatsResponse(BaseModel):
+    deleted_sessions: int
+    deleted_messages: int
 
 
 class LoginRequest(BaseModel):

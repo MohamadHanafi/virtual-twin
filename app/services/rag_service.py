@@ -1,32 +1,35 @@
 from functools import lru_cache
 import os
-from pathlib import Path
 
 from dotenv import load_dotenv
 from langchain_chroma import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
 
+from app.constants.paths import PROJECT_ROOT
+from app.constants.rag import (
+    CHROMA_DIR,
+    COLLECTION_NAME,
+    EMBEDDING_DEVICE,
+    EMBEDDING_MODEL,
+    HF_TOKEN_ENV,
+    NORMALIZE_EMBEDDINGS,
+)
 from app.models import Source
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
 load_dotenv(PROJECT_ROOT / ".env")
-
-CHROMA_DIR = PROJECT_ROOT / "data" / "chroma" / "virtual_twin"
-EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
-COLLECTION_NAME = "virtual_twin_documents"
 
 
 @lru_cache(maxsize=1)
 def get_embedding_model():
-    model_kwargs = {"device": "cpu"}
-    hf_token = os.getenv("HF_TOKEN")
+    model_kwargs = {"device": EMBEDDING_DEVICE}
+    hf_token = os.getenv(HF_TOKEN_ENV)
     if hf_token:
         model_kwargs["token"] = hf_token
 
     return HuggingFaceEmbeddings(
         model_name=EMBEDDING_MODEL,
         model_kwargs=model_kwargs,
-        encode_kwargs={"normalize_embeddings": True},
+        encode_kwargs={"normalize_embeddings": NORMALIZE_EMBEDDINGS},
     )
 
 
